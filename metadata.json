@@ -2,7 +2,6 @@
 {
   "name": "ArtEdu AI - Trợ Lý Giảng Dạy Mĩ Thuật",
   "description": "Ứng dụng hỗ trợ giáo viên Mĩ thuật THCS thiết kế bài giảng tương tác bằng AI, hỗ trợ trắc nghiệm, ghép đôi, kéo thả và sinh hình ảnh nghệ thuật.",
-  "requestFramePermissions": [
-    "camera"
-  ]
+  "requestFramePermissions": []
 }
+

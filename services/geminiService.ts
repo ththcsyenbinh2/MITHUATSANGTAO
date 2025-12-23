@@ -4,14 +4,13 @@ import { InteractionType } from "../types";
 
 export class GeminiService {
   private getAI() {
-    // Luôn tạo instance mới để đảm bảo sử dụng API Key mới nhất từ process.env.API_KEY
     return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   async generateContent(topic: string, type: InteractionType) {
     const ai = this.getAI();
-    // Sử dụng gemini-3-pro-preview để tối ưu khả năng tìm kiếm và xử lý dữ liệu phức tạp
-    const model = 'gemini-3-pro-preview';
+    // Sử dụng model Flash - Tối ưu nhất cho tài khoản Free
+    const model = 'gemini-3-flash-preview';
     let responseSchema: any;
 
     switch (type) {
@@ -25,7 +24,7 @@ export class GeminiService {
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswer: { type: Type.INTEGER },
               explanation: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: "BẮT BUỘC: Link ảnh trực tiếp (.jpg, .png) minh họa cho nội dung mĩ thuật." }
+              imageUrl: { type: Type.STRING, description: "Link ảnh trực tiếp minh họa từ internet." }
             },
             required: ["question", "options", "correctAnswer", "explanation"]
           }
@@ -41,7 +40,7 @@ export class GeminiService {
               id: { type: Type.STRING },
               left: { type: Type.STRING },
               right: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: "Link ảnh minh họa trực tiếp." }
+              imageUrl: { type: Type.STRING }
             },
             required: ["id", "left", "right"]
           }
@@ -72,20 +71,19 @@ export class GeminiService {
         break;
     }
 
-    const systemInstruction = `Bạn là một chuyên gia mĩ thuật THCS. 
-    Nhiệm vụ: Thiết kế bài tập giáo dục mĩ thuật cho chủ đề: "${topic}".
-    YÊU CẦU QUAN TRỌNG:
-    1. Sử dụng công cụ Google Search để tìm URL ẢNH THỰC TẾ (phải là link trực tiếp đến file ảnh .jpg, .png, .webp).
-    2. Ưu tiên các nguồn: Wikimedia Commons, các trang bảo tàng nghệ thuật chính thống.
-    3. Trả về bài tập dưới dạng Tiếng Việt chuyên sâu, hấp dẫn.`;
+    const systemInstruction = `Bạn là trợ lý giáo dục mĩ thuật THCS. 
+    Nhiệm vụ: Thiết kế bài tập tương tác cho chủ đề: "${topic}".
+    Yêu cầu: Sử dụng Google Search để lấy link ảnh minh họa thực tế (.jpg, .png).
+    Nội dung ngắn gọn, súc tích, phù hợp trình độ học sinh lớp 6-9.`;
 
     const response = await ai.models.generateContent({
       model,
-      contents: `Tạo bài tập mĩ thuật chủ đề "${topic}" hình thức ${type}. Chèn các link ảnh thực tế minh họa tác phẩm hoặc họa sĩ liên quan.`,
+      contents: `Thiết kế bài tập ${type} về "${topic}". Chèn link ảnh minh họa nếu tìm được.`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema,
+        thinkingConfig: { thinkingBudget: 0 }, // Tắt thinking để tiết kiệm token trên bản Free
         tools: [{ googleSearch: {} }] 
       }
     });
@@ -102,7 +100,7 @@ export class GeminiService {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
-          parts: [{ text: `A professional, inspiring header for an art lesson about ${topic}. High resolution, artistic mood.` }]
+          parts: [{ text: `A clean, artistic educational illustration for ${topic}.` }]
         },
         config: { imageConfig: { aspectRatio: "16:9" } }
       });
@@ -113,7 +111,7 @@ export class GeminiService {
         }
       }
     } catch (e) {
-      console.error("Cover image gen failed", e);
+      console.error("Cover image error", e);
     }
     return null;
   }

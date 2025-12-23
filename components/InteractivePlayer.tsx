@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LessonContent, InteractionType, QuizQuestion, MatchingPair } from '../types';
+import { InteractionType, LessonContent, QuizQuestion, MatchingPair, CategorizationData } from '../types';
 
 interface Props {
   lesson: LessonContent;
@@ -7,66 +7,73 @@ interface Props {
 }
 
 const InteractivePlayer: React.FC<Props> = ({ lesson, onBack }) => {
+  const [step, setStep] = useState<'playing' | 'review'>('playing');
   const [score, setScore] = useState(0);
-  const [completed, setCompleted] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [userAnswers, setUserAnswers] = useState<any>({});
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [shuffledData, setShuffledData] = useState<any>(null);
-  const [userSelections, setUserSelections] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // Prepare data based on interaction type
     if (lesson.type === InteractionType.MATCHING || lesson.type === InteractionType.PAIRING) {
-      const pairs = lesson.data as MatchingPair[];
+      const data = lesson.data as MatchingPair[];
       setShuffledData({
-        left: [...pairs].sort(() => Math.random() - 0.5),
-        right: [...pairs].sort(() => Math.random() - 0.5)
+        left: [...data].sort(() => Math.random() - 0.5),
+        right: [...data].sort(() => Math.random() - 0.5)
       });
     } else if (lesson.type === InteractionType.WORD_DRAG || lesson.type === InteractionType.IMAGE_DRAG) {
+      const data = lesson.data as CategorizationData;
       setShuffledData({
-        categories: lesson.data.categories,
-        items: [...lesson.data.items].sort(() => Math.random() - 0.5)
+        ...data,
+        items: [...data.items].sort(() => Math.random() - 0.5)
       });
     }
   }, [lesson]);
 
-  const handleQuizAnswer = (idx: number) => {
-    const questions = lesson.data as QuizQuestion[];
-    if (idx === questions[currentIndex].correctAnswer) {
-      setScore(s => s + 1);
-    }
-    
-    if (currentIndex < questions.length - 1) {
+  const handleQuizChoice = (idx: number) => {
+    const isCorrect = idx === (lesson.data as QuizQuestion[])[currentIndex].correctAnswer;
+    setUserAnswers({ ...userAnswers, [currentIndex]: idx });
+    if (isCorrect) setScore(s => s + 1);
+
+    if (currentIndex < (lesson.data as QuizQuestion[]).length - 1) {
       setCurrentIndex(c => c + 1);
     } else {
-      setCompleted(true);
+      setStep('review');
     }
   };
 
-  const checkMatching = () => {
-    // Simplified evaluation for matching/pairing
-    setCompleted(true);
+  const handleCategoryPlace = (cat: string) => {
+    if (!selectedItem) return;
+    setUserAnswers({ ...userAnswers, [selectedItem]: cat });
+    setSelectedItem(null);
+  };
+
+  const checkCategorization = () => {
+    let correct = 0;
+    const data = lesson.data as CategorizationData;
+    data.items.forEach(item => {
+      if (userAnswers[item.id] === item.correctCategory) correct++;
+    });
+    setScore(correct);
+    setStep('review');
   };
 
   const renderQuiz = () => {
-    const questions = lesson.data as QuizQuestion[];
-    const q = questions[currentIndex];
-    
+    const q = (lesson.data as QuizQuestion[])[currentIndex];
     return (
-      <div className="space-y-6 animate-fadeIn">
-        <div className="text-center">
-          <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
-            Câu {currentIndex + 1} / {questions.length}
-          </span>
-          <h2 className="text-2xl font-bold mt-4 text-gray-900">{q.question}</h2>
+      <div className="space-y-8 animate-fadeIn">
+        <div className="text-center space-y-4">
+          <div className="inline-block px-4 py-1 bg-indigo-50 text-indigo-600 rounded-full text-sm font-bold">Câu hỏi {currentIndex + 1}</div>
+          <h2 className="text-3xl font-black text-gray-900 leading-tight">{q.question}</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {q.options.map((opt, i) => (
             <button
               key={i}
-              onClick={() => handleQuizAnswer(i)}
-              className="p-6 text-left rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all font-medium text-gray-700 group flex items-center"
+              onClick={() => handleQuizChoice(i)}
+              className="p-6 text-left rounded-2xl border-2 border-gray-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all font-bold text-gray-700 flex items-center group shadow-sm hover:shadow-md"
             >
-              <span className="w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-indigo-200 flex items-center justify-center mr-4 shrink-0 font-bold">
+              <span className="w-10 h-10 rounded-xl bg-gray-100 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center mr-4 transition-colors font-black">
                 {String.fromCharCode(65 + i)}
               </span>
               {opt}
@@ -77,142 +84,119 @@ const InteractivePlayer: React.FC<Props> = ({ lesson, onBack }) => {
     );
   };
 
-  const renderMatching = () => {
+  const renderCategorization = () => {
     if (!shuffledData) return null;
+    const data = lesson.data as CategorizationData;
     return (
-      <div className="space-y-6">
-        <p className="text-center text-gray-600 italic">Dạng bài: Nối cột hoặc Ghép các cặp tương ứng</p>
-        <div className="grid grid-cols-2 gap-6">
-          <div className="space-y-3">
-             {shuffledData.left.map((p: any, i: number) => (
-               <div key={i} className="p-4 bg-white border-2 border-indigo-100 rounded-xl shadow-sm text-center font-semibold text-indigo-700">
-                 {p.left}
-               </div>
-             ))}
-          </div>
-          <div className="space-y-3">
-             {shuffledData.right.map((p: any, i: number) => (
-               <div key={i} className="p-4 bg-white border-2 border-dashed border-gray-200 rounded-xl shadow-sm text-center font-medium text-gray-600 hover:border-indigo-400 cursor-pointer active:scale-95 transition-all">
-                 {p.right}
-               </div>
-             ))}
-          </div>
+      <div className="space-y-10">
+        <div className="text-center">
+          <h2 className="text-2xl font-black text-gray-900">Phân loại nội dung vào nhóm đúng</h2>
+          <p className="text-gray-500 mt-2">Chọn một mục ở dưới, sau đó chọn nhóm để đặt vào.</p>
         </div>
-        <div className="mt-8 text-center">
-           <button onClick={checkMatching} className="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl font-bold shadow-xl transition-all">Nộp bài</button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {data.categories.map(cat => (
+            <div 
+              key={cat} 
+              onClick={() => handleCategoryPlace(cat)}
+              className={`min-h-[180px] p-6 rounded-[2rem] border-2 border-dashed transition-all cursor-pointer flex flex-col items-center ${
+                selectedItem ? 'border-indigo-400 bg-indigo-50/50 scale-[1.02]' : 'border-gray-200 bg-gray-50'
+              }`}
+            >
+              <h4 className="font-black text-indigo-900 mb-4">{cat}</h4>
+              <div className="flex flex-wrap justify-center gap-2">
+                {Object.entries(userAnswers)
+                  .filter(([_, targetCat]) => targetCat === cat)
+                  .map(([itemId]) => (
+                    <div key={itemId} className="bg-white px-3 py-1.5 rounded-xl shadow-sm border border-gray-100 text-xs font-bold animate-popIn">
+                      {data.items.find(i => i.id === itemId)?.content}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="bg-white p-8 rounded-[2.5rem] border-2 border-gray-100 shadow-inner flex flex-wrap justify-center gap-3">
+          {shuffledData.items.filter((item: any) => !userAnswers[item.id]).map((item: any) => (
+            <button
+              key={item.id}
+              onClick={() => setSelectedItem(item.id)}
+              className={`px-6 py-3 rounded-2xl font-bold transition-all shadow-sm ${
+                selectedItem === item.id 
+                ? 'bg-indigo-600 text-white scale-110 shadow-indigo-200' 
+                : 'bg-white border-2 border-gray-100 text-gray-700 hover:border-indigo-200'
+              }`}
+            >
+              {item.content}
+            </button>
+          ))}
+          {shuffledData.items.filter((item: any) => !userAnswers[item.id]).length === 0 && (
+            <button onClick={checkCategorization} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-black shadow-xl animate-bounce">Nộp bài kiểm tra</button>
+          )}
         </div>
       </div>
     );
   };
 
-  const renderCategorization = () => {
-    if (!shuffledData) return null;
+  const renderReview = () => {
+    const isQuiz = lesson.type === InteractionType.QUIZ;
+    const total = isQuiz ? (lesson.data as QuizQuestion[]).length : (lesson.data as CategorizationData).items.length;
+    const percent = Math.round((score / total) * 100);
+
     return (
-      <div className="space-y-8">
-        <p className="text-center text-gray-600 italic">Dạng bài: Phân loại vào các nhóm đúng</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           {shuffledData.categories.map((cat: string) => (
-             <div key={cat} className="bg-indigo-50/50 border-2 border-dashed border-indigo-200 rounded-2xl p-6 min-h-[150px]">
-               <h4 className="text-center font-bold text-indigo-900 mb-4 border-b border-indigo-100 pb-2">{cat}</h4>
-               <div className="flex flex-wrap gap-2">
-                 {Object.entries(userSelections)
-                   .filter(([itemId, targetCat]) => targetCat === cat)
-                   .map(([itemId]) => {
-                     const item = shuffledData.items.find((i: any) => i.id === itemId);
-                     return (
-                       <div key={itemId} className="bg-white px-3 py-1.5 rounded-lg border shadow-sm text-xs font-medium">
-                         {item?.content}
-                       </div>
-                     );
-                   })}
-               </div>
+      <div className="text-center space-y-8 animate-bounceIn">
+        <div className="relative inline-block">
+          <div className={`w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-4 ${percent >= 50 ? 'bg-green-100' : 'bg-orange-100'}`}>
+             <span className={`text-4xl font-black ${percent >= 50 ? 'text-green-600' : 'text-orange-600'}`}>{percent}%</span>
+          </div>
+          <div className="absolute -top-2 -right-2 bg-yellow-400 text-white w-10 h-10 rounded-full flex items-center justify-center font-black shadow-lg">
+            {percent === 100 ? '⭐' : '📝'}
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-4xl font-black text-gray-900">Hoàn thành bài tập!</h2>
+          <p className="text-gray-500 mt-2 font-medium">Bạn đã trả lời đúng {score} trên tổng số {total} nội dung.</p>
+        </div>
+
+        <div className="max-w-md mx-auto space-y-3">
+           {isQuiz && (lesson.data as QuizQuestion[]).map((q, i) => (
+             <div key={i} className={`p-4 rounded-2xl border-2 text-left flex items-start space-x-3 ${userAnswers[i] === q.correctAnswer ? 'border-green-100 bg-green-50' : 'border-red-100 bg-red-50'}`}>
+                <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${userAnswers[i] === q.correctAnswer ? 'bg-green-500 text-white' : 'bg-red-500 text-white'}`}>
+                  {userAnswers[i] === q.correctAnswer ? '✓' : '✕'}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800">{q.question}</p>
+                  <p className="text-xs text-gray-500 mt-1 italic">{q.explanation}</p>
+                </div>
              </div>
            ))}
         </div>
-        <div className="flex flex-wrap justify-center gap-3 bg-gray-50 p-6 rounded-2xl border border-gray-100">
-          {shuffledData.items
-            .filter((item: any) => !userSelections[item.id])
-            .map((item: any) => (
-              <div 
-                key={item.id} 
-                className="bg-white px-4 py-2.5 rounded-xl border-2 border-gray-100 shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-400 transition-colors"
-                onClick={() => {
-                  // Simplified interaction for non-drag environments: Click category then click item
-                  const nextCat = shuffledData.categories[0]; // Example: assign to first for now
-                  setUserSelections(prev => ({ ...prev, [item.id]: nextCat }));
-                }}
-              >
-                {item.content}
-              </div>
-            ))}
-        </div>
-        <div className="text-center">
-           <button onClick={() => setCompleted(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-2xl font-bold shadow-xl">Hoàn tất phân loại</button>
-        </div>
+
+        <button 
+          onClick={onBack}
+          className="px-12 py-5 bg-indigo-600 text-white font-black rounded-[2rem] shadow-2xl shadow-indigo-200 hover:scale-105 transition-all"
+        >
+          Quay lại thư viện
+        </button>
       </div>
     );
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <button 
-          onClick={onBack}
-          className="flex items-center text-gray-500 hover:text-indigo-600 font-medium transition-colors"
-        >
-          <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Quay lại danh sách
-        </button>
-        <div className="text-right">
-          <h1 className="text-xl font-bold text-gray-900">{lesson.title}</h1>
-          <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold">{lesson.type}</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-14 min-h-[500px] flex flex-col justify-center border border-indigo-50 relative overflow-hidden">
-        {lesson.imageUrl && !completed && (
-          <div className="absolute top-0 right-0 w-32 h-32 opacity-20 pointer-events-none grayscale blur-sm">
-             <img src={lesson.imageUrl} alt="" className="w-full h-full object-cover rounded-bl-[2rem]" />
-          </div>
-        )}
-
-        {!completed ? (
+    <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="bg-white rounded-[3rem] shadow-3xl p-8 md:p-16 min-h-[600px] flex flex-col justify-center border border-gray-50 relative overflow-hidden">
+        {step === 'playing' ? (
           <>
             {lesson.type === InteractionType.QUIZ && renderQuiz()}
-            {(lesson.type === InteractionType.MATCHING || lesson.type === InteractionType.PAIRING) && renderMatching()}
             {(lesson.type === InteractionType.WORD_DRAG || lesson.type === InteractionType.IMAGE_DRAG) && renderCategorization()}
+            {/* Other types would follow similar pattern */}
           </>
-        ) : (
-          <div className="text-center animate-bounceIn">
-            <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Chúc mừng bạn!</h2>
-            <p className="text-gray-500 mb-10 text-lg">Bạn đã hoàn thành xuất sắc bài tập Mĩ thuật này.</p>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-               <div className="bg-indigo-50 p-4 rounded-2xl">
-                 <div className="text-2xl font-black text-indigo-600">100%</div>
-                 <div className="text-[10px] text-indigo-400 uppercase font-bold">Hoàn thành</div>
-               </div>
-               <div className="bg-rose-50 p-4 rounded-2xl">
-                 <div className="text-2xl font-black text-rose-600">A+</div>
-                 <div className="text-[10px] text-rose-400 uppercase font-bold">Xếp loại</div>
-               </div>
-            </div>
-
-            <button 
-              onClick={onBack}
-              className="px-12 py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold rounded-2xl shadow-2xl shadow-indigo-200 transition-all active:scale-95 text-lg"
-            >
-              Về Trang Chủ
-            </button>
-          </div>
-        )}
+        ) : renderReview()}
+        
+        {/* Background Decorative Element */}
+        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-indigo-50 rounded-full opacity-50 blur-3xl pointer-events-none"></div>
       </div>
     </div>
   );

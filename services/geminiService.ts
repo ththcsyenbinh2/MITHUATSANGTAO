@@ -4,12 +4,19 @@ import { InteractionType } from "../types";
 
 export class GeminiService {
   private getAI() {
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Ưu tiên lấy key từ trình duyệt người dùng đã nhập
+    const userKey = localStorage.getItem('USER_ARTEDU_API_KEY');
+    const apiKey = userKey || process.env.API_KEY;
+    
+    if (!apiKey) {
+      throw new Error("API Key không tồn tại. Vui lòng cấu hình trong phần cài đặt.");
+    }
+
+    return new GoogleGenAI({ apiKey });
   }
 
   async generateContent(topic: string, type: InteractionType) {
     const ai = this.getAI();
-    // Sử dụng model Flash - Tối ưu nhất cho tài khoản Free
     const model = 'gemini-3-flash-preview';
     let responseSchema: any;
 
@@ -24,7 +31,7 @@ export class GeminiService {
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswer: { type: Type.INTEGER },
               explanation: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: "Link ảnh trực tiếp minh họa từ internet." }
+              imageUrl: { type: Type.STRING, description: "URL ảnh minh họa trực tiếp." }
             },
             required: ["question", "options", "correctAnswer", "explanation"]
           }
@@ -71,20 +78,13 @@ export class GeminiService {
         break;
     }
 
-    const systemInstruction = `Bạn là trợ lý giáo dục mĩ thuật THCS. 
-    Nhiệm vụ: Thiết kế bài tập tương tác cho chủ đề: "${topic}".
-    Yêu cầu: Sử dụng Google Search để lấy link ảnh minh họa thực tế (.jpg, .png).
-    Nội dung ngắn gọn, súc tích, phù hợp trình độ học sinh lớp 6-9.`;
-
     const response = await ai.models.generateContent({
       model,
-      contents: `Thiết kế bài tập ${type} về "${topic}". Chèn link ảnh minh họa nếu tìm được.`,
+      contents: `Hãy đóng vai một giáo viên mĩ thuật chuyên nghiệp. Thiết kế bài tập tương tác ${type} về chủ đề "${topic}" phù hợp học sinh trung học. Tìm link ảnh minh họa thực tế nếu có thể.`,
       config: {
-        systemInstruction,
         responseMimeType: "application/json",
         responseSchema,
-        thinkingConfig: { thinkingBudget: 0 }, // Tắt thinking để tiết kiệm token trên bản Free
-        tools: [{ googleSearch: {} }] 
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
 
@@ -100,7 +100,7 @@ export class GeminiService {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
-          parts: [{ text: `A clean, artistic educational illustration for ${topic}.` }]
+          parts: [{ text: `A vibrant artistic education cover for ${topic}` }]
         },
         config: { imageConfig: { aspectRatio: "16:9" } }
       });
@@ -111,7 +111,7 @@ export class GeminiService {
         }
       }
     } catch (e) {
-      console.error("Cover image error", e);
+      console.error("Cover generation failed", e);
     }
     return null;
   }

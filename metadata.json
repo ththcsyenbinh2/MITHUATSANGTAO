@@ -1,7 +1,7 @@
 
 {
-  "name": "Mĩ Thuật Sáng Tạo - THCS",
-  "description": "Ứng dụng học tập tương tác môn Mĩ thuật dành cho học sinh THCS với các trò chơi trắc nghiệm, kéo thả và quản lý giáo viên.",
+  "name": "ArtEdu AI - Trợ Lý Giảng Dạy Mĩ Thuật",
+  "description": "Ứng dụng hỗ trợ giáo viên Mĩ thuật THCS thiết kế bài giảng tương tác bằng AI, hỗ trợ trắc nghiệm, ghép đôi, kéo thả và sinh hình ảnh nghệ thuật.",
   "requestFramePermissions": [
     "camera"
   ]

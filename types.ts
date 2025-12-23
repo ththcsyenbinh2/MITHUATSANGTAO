@@ -1,35 +1,42 @@
 
-export enum TaskType {
+export enum InteractionType {
   QUIZ = 'QUIZ',
-  DRAG_IMAGE = 'DRAG_IMAGE',
-  DRAG_TEXT = 'DRAG_TEXT',
+  IMAGE_DRAG = 'IMAGE_DRAG',
+  WORD_DRAG = 'WORD_DRAG',
   MATCHING = 'MATCHING',
-  COLUMN_MATCHING = 'COLUMN_MATCHING'
+  PAIRING = 'PAIRING'
 }
 
-export interface Question {
-  id: string;
-  type: TaskType;
-  title: string;
-  description?: string;
-  image?: string;
-  options?: string[]; // For QUIZ
-  correctAnswer?: any;
-  items?: any[]; // For Drag/Matching
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: number;
 }
 
-export interface Lesson {
+export interface MatchingPair {
+  left: string;
+  right: string;
+}
+
+export interface DragDropItem {
   id: string;
-  title: string;
+  content: string;
   category: string;
-  image: string;
-  progress: number;
-  questions: Question[];
 }
 
-export interface UserState {
-  name: string;
-  points: number;
-  level: string;
-  role: 'student' | 'teacher';
+export interface LessonContent {
+  id: string;
+  title: string;
+  description: string;
+  type: InteractionType;
+  data: any; // Dynamic based on type
+  imageUrl?: string;
+  createdAt: number;
+}
+
+export interface AppState {
+  apiKey: string;
+  lessons: LessonContent[];
+  currentLesson: LessonContent | null;
+  isGenerating: boolean;
 }

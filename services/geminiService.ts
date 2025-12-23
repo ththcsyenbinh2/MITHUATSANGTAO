@@ -1,15 +1,16 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { InteractionType } from "../types";
 
 export class GeminiService {
-  private ai: GoogleGenAI;
-
-  constructor() {
-    this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  private getAI() {
+    // Luôn tạo instance mới để đảm bảo sử dụng API Key mới nhất từ process.env.API_KEY
+    return new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   async generateContent(topic: string, type: InteractionType) {
-    // Sử dụng gemini-3-pro-preview cho các tác vụ phức tạp cần tìm kiếm thông tin chính xác
+    const ai = this.getAI();
+    // Sử dụng gemini-3-pro-preview để tối ưu khả năng tìm kiếm và xử lý dữ liệu phức tạp
     const model = 'gemini-3-pro-preview';
     let responseSchema: any;
 
@@ -24,7 +25,7 @@ export class GeminiService {
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswer: { type: Type.INTEGER },
               explanation: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: "BẮT BUỘC: Link ảnh trực tiếp (.jpg, .png) từ Wikimedia, Pinterest hoặc bảo tàng minh họa cho tác phẩm/họa sĩ được nhắc đến." }
+              imageUrl: { type: Type.STRING, description: "BẮT BUỘC: Link ảnh trực tiếp (.jpg, .png) minh họa cho nội dung mĩ thuật." }
             },
             required: ["question", "options", "correctAnswer", "explanation"]
           }
@@ -38,9 +39,9 @@ export class GeminiService {
             type: Type.OBJECT,
             properties: {
               id: { type: Type.STRING },
-              left: { type: Type.STRING, description: "Cột A: Tên tác phẩm hoặc đặc điểm" },
-              right: { type: Type.STRING, description: "Cột B: Tên họa sĩ hoặc định nghĩa tương ứng" },
-              imageUrl: { type: Type.STRING, description: "Link ảnh minh họa trực tiếp cho cặp này." }
+              left: { type: Type.STRING },
+              right: { type: Type.STRING },
+              imageUrl: { type: Type.STRING, description: "Link ảnh minh họa trực tiếp." }
             },
             required: ["id", "left", "right"]
           }
@@ -60,7 +61,7 @@ export class GeminiService {
                   id: { type: Type.STRING },
                   content: { type: Type.STRING },
                   correctCategory: { type: Type.STRING },
-                  imageUrl: { type: Type.STRING, description: "Link ảnh minh họa trực tiếp." }
+                  imageUrl: { type: Type.STRING }
                 },
                 required: ["id", "content", "correctCategory"]
               }
@@ -71,18 +72,16 @@ export class GeminiService {
         break;
     }
 
-    const systemInstruction = `Bạn là một chuyên gia mĩ thuật hàng đầu. 
-    Nhiệm vụ: Thiết kế bài tập giáo dục mĩ thuật THCS cho chủ đề: "${topic}".
-    YÊU CẦU QUAN TRỌNG VỀ HÌNH ẢNH:
-    1. Sử dụng công cụ Google Search để tìm URL ẢNH TRỰC TIẾP (kết thúc bằng .jpg, .png, .webp).
-    2. Ưu tiên các nguồn: Wikimedia Commons, các bảo tàng lớn (Louvre, Met), Pinterest (link ảnh gốc).
-    3. Đảm bảo ảnh phản ánh đúng tác phẩm hoặc họa sĩ được nhắc tới.
-    4. Nếu là bài tập trắc nghiệm về phong cách, hãy tìm ảnh tiêu biểu cho phong cách đó.
-    5. Nội dung bài tập phải mang tính chuyên môn cao, ngôn ngữ Tiếng Việt chuẩn mực.`;
+    const systemInstruction = `Bạn là một chuyên gia mĩ thuật THCS. 
+    Nhiệm vụ: Thiết kế bài tập giáo dục mĩ thuật cho chủ đề: "${topic}".
+    YÊU CẦU QUAN TRỌNG:
+    1. Sử dụng công cụ Google Search để tìm URL ẢNH THỰC TẾ (phải là link trực tiếp đến file ảnh .jpg, .png, .webp).
+    2. Ưu tiên các nguồn: Wikimedia Commons, các trang bảo tàng nghệ thuật chính thống.
+    3. Trả về bài tập dưới dạng Tiếng Việt chuyên sâu, hấp dẫn.`;
 
-    const response = await this.ai.models.generateContent({
+    const response = await ai.models.generateContent({
       model,
-      contents: `Tạo bài tập mĩ thuật chuyên sâu chủ đề "${topic}" dưới dạng ${type}. Hãy tìm và chèn ít nhất 3-5 link ảnh thực tế chất lượng cao.`,
+      contents: `Tạo bài tập mĩ thuật chủ đề "${topic}" hình thức ${type}. Chèn các link ảnh thực tế minh họa tác phẩm hoặc họa sĩ liên quan.`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
@@ -99,10 +98,11 @@ export class GeminiService {
 
   async generateIllustrativeImage(topic: string) {
     try {
-      const response = await this.ai.models.generateContent({
+      const ai = this.getAI();
+      const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
-          parts: [{ text: `A high-quality, professional artistic banner image for a middle school art lesson about: ${topic}. Soft lighting, artistic materials, vibrant colors, educational and inspirational.` }]
+          parts: [{ text: `A professional, inspiring header for an art lesson about ${topic}. High resolution, artistic mood.` }]
         },
         config: { imageConfig: { aspectRatio: "16:9" } }
       });

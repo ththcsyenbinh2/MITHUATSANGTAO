@@ -1,0 +1,8 @@
+
+{
+  "name": "Mĩ Thuật Sáng Tạo - THCS",
+  "description": "Ứng dụng học tập tương tác môn Mĩ thuật dành cho học sinh THCS với các trò chơi trắc nghiệm, kéo thả và quản lý giáo viên.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

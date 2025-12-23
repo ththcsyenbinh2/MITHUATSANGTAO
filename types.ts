@@ -1,27 +1,33 @@
-
 export enum InteractionType {
   QUIZ = 'QUIZ',
-  IMAGE_DRAG = 'IMAGE_DRAG',
-  WORD_DRAG = 'WORD_DRAG',
-  MATCHING = 'MATCHING',
-  PAIRING = 'PAIRING'
+  IMAGE_DRAG = 'IMAGE_DRAG', // Phân loại hình ảnh/thuật ngữ vào nhóm
+  WORD_DRAG = 'WORD_DRAG',  // Sắp xếp từ vào câu/định nghĩa
+  MATCHING = 'MATCHING',   // Ghép đôi (Cột A - Cột B)
+  PAIRING = 'PAIRING'      // Nối cặp tương ứng
 }
 
 export interface QuizQuestion {
   question: string;
   options: string[];
   correctAnswer: number;
+  explanation: string;
 }
 
 export interface MatchingPair {
+  id: string;
   left: string;
   right: string;
 }
 
-export interface DragDropItem {
+export interface CategoryItem {
   id: string;
   content: string;
-  category: string;
+  correctCategory: string;
+}
+
+export interface CategorizationData {
+  categories: string[];
+  items: CategoryItem[];
 }
 
 export interface LessonContent {
@@ -29,7 +35,7 @@ export interface LessonContent {
   title: string;
   description: string;
   type: InteractionType;
-  data: any; // Dynamic based on type
+  data: any; 
   imageUrl?: string;
   createdAt: number;
 }

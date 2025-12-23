@@ -11,18 +11,21 @@ export interface QuizQuestion {
   options: string[];
   correctAnswer: number;
   explanation: string;
+  imageUrl?: string;
 }
 
 export interface MatchingPair {
   id: string;
   left: string;
   right: string;
+  imageUrl?: string;
 }
 
 export interface CategoryItem {
   id: string;
   content: string;
   correctCategory: string;
+  imageUrl?: string;
 }
 
 export interface CategorizationData {
@@ -37,11 +40,11 @@ export interface LessonContent {
   type: InteractionType;
   data: any; 
   imageUrl?: string;
+  groundingChunks?: any[];
   createdAt: number;
 }
 
 export interface AppState {
-  apiKey: string;
   lessons: LessonContent[];
   currentLesson: LessonContent | null;
   isGenerating: boolean;

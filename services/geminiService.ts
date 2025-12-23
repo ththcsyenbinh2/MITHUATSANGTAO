@@ -1,46 +1,67 @@
-import { GoogleGenAI, SchemaType } from "@google/genai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { InteractionType } from "../types";
 
-export class GeminiService {
-  private getAI() {
-    // Ưu tiên lấy key từ trình duyệt người dùng đã nhập
-    const userKey = localStorage.getItem('USER_ARTEDU_API_KEY');
-    const apiKey = userKey || process.env.API_KEY;
-    
-    if (!apiKey) {
-      throw new Error("API Key không tồn tại. Vui lòng cấu hình trong phần cài đặt.");
-    }
+// Tên key lưu trong LocalStorage
+const STORAGE_KEY = 'USER_ARTEDU_API_KEY';
 
-    return new GoogleGenAI({ apiKey });
+export class GeminiService {
+  
+  /**
+   * 1. HÀM CẬP NHẬT API KEY
+   * Gọi hàm này khi người dùng nhập Key mới vào ô Input ở giao diện
+   */
+  updateApiKey(newKey: string): boolean {
+    if (newKey && newKey.trim().length > 0) {
+      localStorage.setItem(STORAGE_KEY, newKey.trim());
+      return true;
+    }
+    return false;
   }
 
   /**
-   * Hàm tạo URL ảnh từ từ khóa.
-   * Sử dụng dịch vụ Pollinations.ai để tạo ảnh minh họa nghệ thuật dựa trên mô tả.
+   * 2. HÀM LẤY INSTANCE AI
+   * Tự động ưu tiên Key người dùng nhập -> Key biến môi trường
+   */
+  private getAIModel() {
+    const userKey = localStorage.getItem(STORAGE_KEY);
+    const apiKey = userKey || process.env.API_KEY || process.env.NEXT_PUBLIC_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error("API Key không tồn tại. Vui lòng nhập Key trong cài đặt.");
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    // Sử dụng model Flash 1.5 ổn định nhất hiện nay
+    return genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  }
+
+  /**
+   * 3. HÀM TẠO URL ẢNH TỪ TỪ KHÓA (KHẮC PHỤC LỖI ẢNH CHẾT)
+   * Thay vì để AI bịa link, ta dùng service tạo ảnh từ keyword
    */
   private generateSafeImageUrl(keyword: string): string {
     if (!keyword) return "";
-    // Thêm các từ khóa phụ để định hướng phong cách ảnh đẹp hơn
-    const prompt = encodeURIComponent(`${keyword}, artistic style, high quality, educational illustration`);
-    // nologo=true để bỏ logo, seed ngẫu nhiên để ảnh đổi mới mỗi lần
-    const randomSeed = Math.floor(Math.random() * 1000);
-    return `https://image.pollinations.ai/prompt/${prompt}?width=800&height=600&nologo=true&seed=${randomSeed}`;
+    // Thêm prompt phụ để ảnh đẹp và nghệ thuật hơn
+    const prompt = encodeURIComponent(`${keyword}, artistic style, educational illustration, high quality, 4k`);
+    // Random seed để mỗi lần sinh ra ảnh khác nhau một chút
+    const seed = Math.floor(Math.random() * 10000);
+    return `https://image.pollinations.ai/prompt/${prompt}?width=800&height=600&nologo=true&seed=${seed}`;
   }
 
   /**
-   * Hàm đệ quy để duyệt qua object JSON trả về.
-   * Nếu tìm thấy trường 'imageKeyword', nó sẽ tạo thêm trường 'imageUrl'.
+   * 4. HÀM XỬ LÝ HẬU KỲ JSON
+   * Duyệt qua dữ liệu AI trả về, tìm 'imageKeyword' để tạo 'imageUrl'
    */
   private enrichDataWithImages(data: any): any {
     if (Array.isArray(data)) {
       return data.map(item => this.enrichDataWithImages(item));
     } else if (typeof data === 'object' && data !== null) {
-      // Nếu có từ khóa ảnh, tạo link ảnh thật
+      // Logic chính: Nếu có keyword ảnh -> Tạo link ảnh thật
       if (data.imageKeyword) {
         data.imageUrl = this.generateSafeImageUrl(data.imageKeyword);
       }
       
-      // Duyệt tiếp các thuộc tính con
+      // Đệ quy cho các thuộc tính con
       for (const key in data) {
         if (typeof data[key] === 'object') {
           data[key] = this.enrichDataWithImages(data[key]);
@@ -50,20 +71,26 @@ export class GeminiService {
     return data;
   }
 
+  /**
+   * 5. HÀM CHÍNH: SINH NỘI DUNG BÀI TẬP
+   */
   async generateContent(topic: string, type: InteractionType) {
-    const ai = this.getAI();
-    // Sử dụng model ổn định 1.5 Flash (bản 3 preview thường chưa ổn định public)
-    const model = 'gemini-1.5-flash'; 
-    
-    // Định nghĩa Schema chung cho thuộc tính hình ảnh
-    // Thay vì xin URL, ta xin TỪ KHÓA (keyword)
+    let model;
+    try {
+      model = this.getAIModel();
+    } catch (e: any) {
+      throw new Error("Vui lòng nhập API Key để bắt đầu sử dụng.");
+    }
+
+    // Định nghĩa Schema chung cho trường hình ảnh (Xin từ khóa thay vì xin URL)
     const imageKeywordSchema = { 
       type: SchemaType.STRING, 
-      description: "Từ khóa tiếng Anh ngắn gọn mô tả hình ảnh minh họa (ví dụ: 'Renaissance Mona Lisa painting')." 
+      description: "Từ khóa tiếng Anh ngắn gọn mô tả hình ảnh minh họa (ví dụ: 'Van Gogh Starry Night painting')." 
     };
 
     let responseSchema: any;
 
+    // Cấu hình Schema dựa trên loại bài tập
     switch (type) {
       case InteractionType.QUIZ:
         responseSchema = {
@@ -75,7 +102,7 @@ export class GeminiService {
               options: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
               correctAnswer: { type: SchemaType.INTEGER },
               explanation: { type: SchemaType.STRING },
-              imageKeyword: imageKeywordSchema // Xin từ khóa thay vì link
+              imageKeyword: imageKeywordSchema // <--- Lưu ý: Dùng keyword
             },
             required: ["question", "options", "correctAnswer", "explanation", "imageKeyword"]
           }
@@ -125,56 +152,67 @@ export class GeminiService {
     }
 
     try {
-      const response = await ai.models.generateContent({
-        model,
-        contents: `Đóng vai giáo viên mĩ thuật. Tạo bài tập ${type} về chủ đề "${topic}".
-        QUAN TRỌNG: 
-        1. Nội dung tiếng Việt.
-        2. Trường 'imageKeyword': Phải viết bằng TIẾNG ANH, mô tả cụ thể chủ thể cần minh họa để AI vẽ hình.`,
-        config: {
+      // Gọi AI
+      const result = await model.generateContent({
+        contents: [{
+          role: "user",
+          parts: [{ text: `Đóng vai giáo viên mĩ thuật chuyên nghiệp. Thiết kế bài tập tương tác ${type} về chủ đề "${topic}" phù hợp học sinh trung học.
+          
+          QUAN TRỌNG:
+          1. Nội dung câu hỏi/đáp án: Tiếng Việt.
+          2. Trường 'imageKeyword': Bắt buộc viết bằng TIẾNG ANH, mô tả cụ thể chủ thể (ví dụ: "Renaissance sculpture David").` }]
+        }],
+        generationConfig: {
           responseMimeType: "application/json",
-          responseSchema,
+          responseSchema: responseSchema,
         }
       });
 
-      // Lấy text JSON thô
-      const rawText = response.text();
-      if (!rawText) throw new Error("Không nhận được phản hồi từ AI");
+      // Xử lý kết quả
+      const responseText = result.response.text();
+      let parsedData = JSON.parse(responseText);
 
-      // Parse JSON
-      let parsedData = JSON.parse(rawText);
-
-      // Tự động điền link ảnh vào dữ liệu dựa trên keyword
+      // Điền link ảnh vào dữ liệu
       parsedData = this.enrichDataWithImages(parsedData);
 
       return {
         data: parsedData,
-        groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks
+        // Metadata nếu cần (tuỳ version SDK trả về)
+        groundingChunks: [] 
       };
 
-    } catch (error) {
-      console.error("Lỗi khi sinh nội dung:", error);
-      throw error; // Ném lỗi để UI xử lý
+    } catch (error: any) {
+      console.error("Gemini Error:", error);
+      
+      // Xử lý thông báo lỗi thân thiện
+      const msg = error.message || "";
+      if (msg.includes("429") || msg.includes("Quota") || msg.includes("Exhausted")) {
+        throw new Error("Hệ thống đang quá tải (Hết Quota miễn phí). Vui lòng nhập API Key cá nhân mới để tiếp tục.");
+      }
+      if (msg.includes("API key not valid") || msg.includes("400")) {
+        localStorage.removeItem(STORAGE_KEY); // Xóa key lỗi
+        throw new Error("API Key không hợp lệ. Vui lòng kiểm tra lại.");
+      }
+      
+      throw new Error("Có lỗi khi tạo bài tập. Vui lòng thử lại.");
     }
   }
 
+  /**
+   * 6. HÀM TẠO ẢNH BÌA (Dùng chung logic an toàn)
+   */
   async generateIllustrativeImage(topic: string) {
     try {
-      const ai = this.getAI();
-      // Sử dụng model Imagen 3 (nếu tài khoản hỗ trợ) hoặc model vision phù hợp
-      // Lưu ý: gemini-2.5-flash-image có thể chưa khả dụng với mọi key, fallback về prompt url nếu cần
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash', // Dùng flash để lấy prompt mô tả ảnh bìa
-        contents: `Mô tả một bức tranh nghệ thuật đẹp về chủ đề: ${topic}. Chỉ trả về nội dung mô tả bằng tiếng Anh, không giải thích gì thêm.`,
-      });
+      const model = this.getAIModel();
+      // Bước 1: Xin AI prompt tiếng Anh
+      const result = await model.generateContent(`Viết một prompt ngắn (tiếng Anh) để vẽ một bức tranh nghệ thuật đẹp làm ảnh bìa cho chủ đề: "${topic}". Chỉ trả về nội dung prompt.`);
+      const prompt = result.response.text();
       
-      const prompt = response.text();
-      // Dùng chung cơ chế Pollinations để tạo ảnh bìa (nhanh và đẹp)
+      // Bước 2: Dùng prompt tạo link ảnh
       return this.generateSafeImageUrl(prompt || topic);
-
     } catch (e) {
-      console.error("Cover generation failed", e);
-      // Fallback: Tạo ảnh đơn giản từ tên topic
+      // Fallback nếu lỗi: dùng chính tên topic làm prompt
+      console.warn("Lỗi sinh prompt ảnh bìa, dùng fallback:", e);
       return this.generateSafeImageUrl(topic);
     }
   }

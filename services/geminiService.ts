@@ -5,15 +5,14 @@ export class GeminiService {
   private ai: GoogleGenAI;
 
   constructor() {
-    // Correct initialization using process.env.API_KEY as per guidelines
     this.ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   }
 
   async generateContent(topic: string, type: InteractionType) {
-    const model = 'gemini-3-flash-preview';
+    // Sử dụng gemini-3-pro-preview cho các tác vụ phức tạp cần tìm kiếm thông tin chính xác
+    const model = 'gemini-3-pro-preview';
     let responseSchema: any;
 
-    // Define schema based on interaction type
     switch (type) {
       case InteractionType.QUIZ:
         responseSchema = {
@@ -25,7 +24,7 @@ export class GeminiService {
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswer: { type: Type.INTEGER },
               explanation: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: "Link ảnh minh họa thực tế tìm được từ Google Search" }
+              imageUrl: { type: Type.STRING, description: "BẮT BUỘC: Link ảnh trực tiếp (.jpg, .png) từ Wikimedia, Pinterest hoặc bảo tàng minh họa cho tác phẩm/họa sĩ được nhắc đến." }
             },
             required: ["question", "options", "correctAnswer", "explanation"]
           }
@@ -39,9 +38,9 @@ export class GeminiService {
             type: Type.OBJECT,
             properties: {
               id: { type: Type.STRING },
-              left: { type: Type.STRING, description: "Nội dung cột trái (Ví dụ: Tên tác phẩm)" },
-              right: { type: Type.STRING, description: "Nội dung cột phải tương ứng (Ví dụ: Tên họa sĩ)" },
-              imageUrl: { type: Type.STRING, description: "Link ảnh minh họa cho mục này nếu có" }
+              left: { type: Type.STRING, description: "Cột A: Tên tác phẩm hoặc đặc điểm" },
+              right: { type: Type.STRING, description: "Cột B: Tên họa sĩ hoặc định nghĩa tương ứng" },
+              imageUrl: { type: Type.STRING, description: "Link ảnh minh họa trực tiếp cho cặp này." }
             },
             required: ["id", "left", "right"]
           }
@@ -61,7 +60,7 @@ export class GeminiService {
                   id: { type: Type.STRING },
                   content: { type: Type.STRING },
                   correctCategory: { type: Type.STRING },
-                  imageUrl: { type: Type.STRING }
+                  imageUrl: { type: Type.STRING, description: "Link ảnh minh họa trực tiếp." }
                 },
                 required: ["id", "content", "correctCategory"]
               }
@@ -72,15 +71,18 @@ export class GeminiService {
         break;
     }
 
-    const systemInstruction = `Bạn là chuyên gia giáo dục Mỹ thuật THCS. 
-    Nhiệm vụ: Tạo bài tập bài bản về chủ đề "${topic}".
-    Yêu cầu ĐẶC BIỆT: Sử dụng Google Search để tìm link hình ảnh (URL) THỰC TẾ của các tác phẩm nghệ thuật, tranh vẽ, chân dung họa sĩ liên quan đến câu hỏi.
-    Nếu không tìm được link chính xác, hãy bỏ trống trường imageUrl.
-    Nội dung bằng Tiếng Việt, chuyên sâu, thẩm mỹ.`;
+    const systemInstruction = `Bạn là một chuyên gia mĩ thuật hàng đầu. 
+    Nhiệm vụ: Thiết kế bài tập giáo dục mĩ thuật THCS cho chủ đề: "${topic}".
+    YÊU CẦU QUAN TRỌNG VỀ HÌNH ẢNH:
+    1. Sử dụng công cụ Google Search để tìm URL ẢNH TRỰC TIẾP (kết thúc bằng .jpg, .png, .webp).
+    2. Ưu tiên các nguồn: Wikimedia Commons, các bảo tàng lớn (Louvre, Met), Pinterest (link ảnh gốc).
+    3. Đảm bảo ảnh phản ánh đúng tác phẩm hoặc họa sĩ được nhắc tới.
+    4. Nếu là bài tập trắc nghiệm về phong cách, hãy tìm ảnh tiêu biểu cho phong cách đó.
+    5. Nội dung bài tập phải mang tính chuyên môn cao, ngôn ngữ Tiếng Việt chuẩn mực.`;
 
     const response = await this.ai.models.generateContent({
       model,
-      contents: `Hãy tạo bài tập hình thức ${type} cho chủ đề: ${topic}. Hãy tìm và chèn link ảnh thực tế cho các câu hỏi nếu cần minh họa.`,
+      contents: `Tạo bài tập mĩ thuật chuyên sâu chủ đề "${topic}" dưới dạng ${type}. Hãy tìm và chèn ít nhất 3-5 link ảnh thực tế chất lượng cao.`,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
@@ -89,7 +91,6 @@ export class GeminiService {
       }
     });
 
-    // Return the generated data and grounding chunks (mandatory when using googleSearch)
     return {
       data: JSON.parse(response.text),
       groundingChunks: response.candidates?.[0]?.groundingMetadata?.groundingChunks
@@ -101,20 +102,18 @@ export class GeminiService {
       const response = await this.ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
-          parts: [{ text: `A vibrant, professional artistic cover for an art education lesson about: ${topic}. Fine art style, clean, educational.` }]
+          parts: [{ text: `A high-quality, professional artistic banner image for a middle school art lesson about: ${topic}. Soft lighting, artistic materials, vibrant colors, educational and inspirational.` }]
         },
         config: { imageConfig: { aspectRatio: "16:9" } }
       });
 
-      // Correctly iterate through parts to find the image as per guidelines
       for (const part of response.candidates[0].content.parts) {
         if (part.inlineData) {
-          const base64EncodeString: string = part.inlineData.data;
-          return `data:image/png;base64,${base64EncodeString}`;
+          return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
     } catch (e) {
-      console.error("Cover image generation failed", e);
+      console.error("Cover image gen failed", e);
     }
     return null;
   }

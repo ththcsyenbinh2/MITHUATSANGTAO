@@ -4,6 +4,7 @@ import { InteractionType, LessonContent, AppState } from './types';
 import { GeminiService } from './services/geminiService';
 import LessonCard from './components/LessonCard';
 import InteractivePlayer from './components/InteractivePlayer';
+import ApiKeyModal from './components/ApiKeyModal';
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>({
@@ -13,6 +14,7 @@ const App: React.FC = () => {
   });
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showKeyModal, setShowKeyModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingMsg, setLoadingMsg] = useState('');
   const [newLesson, setNewLesson] = useState({ title: '', topic: '', type: InteractionType.QUIZ });
@@ -24,6 +26,13 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     if (!newLesson.topic) return;
     
+    // Kiểm tra API Key trước khi bắt đầu
+    const apiKey = localStorage.getItem('USER_ARTEDU_API_KEY') || process.env.API_KEY;
+    if (!apiKey) {
+      setShowKeyModal(true);
+      return;
+    }
+
     setState(prev => ({ ...prev, isGenerating: true }));
     setShowCreateModal(false);
     setErrorMessage(null);
@@ -59,9 +68,11 @@ const App: React.FC = () => {
       setState(prev => ({ ...prev, isGenerating: false }));
       
       if (e.message?.includes("429")) {
-        setErrorMessage("Hệ thống đang bận do có nhiều lượt yêu cầu. Vui lòng thử lại sau 30 giây.");
+        setErrorMessage("Hệ thống đang quá tải hoặc hết Quota. Vui lòng thử lại sau hoặc nhập API Key cá nhân mới.");
+      } else if (e.message?.includes("API Key")) {
+        setShowKeyModal(true);
       } else {
-        setErrorMessage("Không thể kết nối với trí tuệ nhân tạo. Vui lòng kiểm tra lại chủ đề hoặc kết nối mạng.");
+        setErrorMessage("Lỗi: " + (e.message || "Không thể kết nối AI."));
       }
     }
   };
@@ -76,13 +87,23 @@ const App: React.FC = () => {
           <h1 className="text-xl font-black tracking-tight text-slate-900">ArtEdu AI</h1>
         </div>
 
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md flex items-center transition-all active:scale-95"
-        >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
-          Soạn bài
-        </button>
+        <div className="flex items-center space-x-3">
+          <button 
+            onClick={() => setShowKeyModal(true)}
+            className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+            title="Cấu hình API Key"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </button>
+          
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md flex items-center transition-all active:scale-95"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" /></svg>
+            Soạn bài
+          </button>
+        </div>
       </header>
 
       <main className="max-w-6xl mx-auto p-6 md:p-10">
@@ -94,13 +115,21 @@ const App: React.FC = () => {
             {state.lessons.length === 0 && !state.isGenerating && (
               <section className="bg-indigo-600 rounded-[3rem] p-12 md:p-20 text-white text-center space-y-8 shadow-2xl">
                 <h2 className="text-4xl md:text-6xl font-black leading-tight">Soạn bài tập mĩ thuật <br/>trong chớp mắt với AI</h2>
-                <p className="text-indigo-100 text-lg max-w-2xl mx-auto">Công cụ hỗ trợ giáo viên thiết kế bài tập trắc nghiệm, ghép đôi và phân loại hình ảnh hoàn toàn tự động.</p>
-                <button 
-                  onClick={() => setShowCreateModal(true)}
-                  className="bg-white text-indigo-600 px-10 py-4 rounded-2xl font-black text-xl shadow-xl hover:scale-105 transition-all"
-                >
-                  Bắt đầu ngay
-                </button>
+                <p className="text-indigo-100 text-lg max-w-2xl mx-auto">Tự động thiết kế trắc nghiệm, ghép đôi và phân loại hình ảnh. Lưu API Key của riêng bạn để sử dụng ổn định hơn.</p>
+                <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+                  <button 
+                    onClick={() => setShowCreateModal(true)}
+                    className="bg-white text-indigo-600 px-10 py-4 rounded-2xl font-black text-xl shadow-xl hover:scale-105 transition-all w-full md:w-auto"
+                  >
+                    Bắt đầu ngay
+                  </button>
+                  <button 
+                    onClick={() => setShowKeyModal(true)}
+                    className="bg-indigo-500/30 backdrop-blur-md text-white border border-white/20 px-10 py-4 rounded-2xl font-black text-xl hover:bg-indigo-500/50 transition-all w-full md:w-auto"
+                  >
+                    Cấu hình API Key
+                  </button>
+                </div>
               </section>
             )}
 
@@ -108,7 +137,12 @@ const App: React.FC = () => {
             {errorMessage && (
               <div className="bg-rose-50 border border-rose-100 p-6 rounded-2xl flex items-center text-rose-600 font-bold space-x-4 animate-fadeIn">
                 <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                <span>{errorMessage}</span>
+                <div className="flex-1">
+                  <span>{errorMessage}</span>
+                  {errorMessage.includes("Quota") && (
+                    <button onClick={() => setShowKeyModal(true)} className="ml-2 underline hover:no-underline">Nhập key mới tại đây.</button>
+                  )}
+                </div>
                 <button onClick={() => setErrorMessage(null)} className="ml-auto text-rose-300 hover:text-rose-500">✕</button>
               </div>
             )}
@@ -146,7 +180,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Simplified Modal */}
+      {/* Soạn bài Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-50 p-6 animate-fadeIn">
           <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-xl w-full p-8 md:p-12 space-y-8">
@@ -159,11 +193,11 @@ const App: React.FC = () => {
 
             <div className="space-y-6">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Chủ đề bài giảng</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Chủ đề mĩ thuật</label>
                 <input 
                   type="text" value={newLesson.topic} onChange={e => setNewLesson({...newLesson, topic: e.target.value})}
                   className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:bg-white focus:border-indigo-600 rounded-2xl outline-none font-bold"
-                  placeholder="VD: Tranh dân gian Đông Hồ"
+                  placeholder="VD: Hội họa thời Phục Hưng"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -185,12 +219,21 @@ const App: React.FC = () => {
                 onClick={handleGenerate} disabled={!newLesson.topic}
                 className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-lg shadow-lg disabled:opacity-50 transition-all hover:bg-indigo-700"
               >
-                TẠO BÀI TẬP MIỄN PHÍ
+                KHỞI TẠO BẰNG AI
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* API Key Modal */}
+      <ApiKeyModal 
+        isOpen={showKeyModal} 
+        onClose={() => setShowKeyModal(false)} 
+        onSave={() => {
+          setErrorMessage(null);
+        }}
+      />
     </div>
   );
 };

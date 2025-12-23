@@ -4,6 +4,7 @@ import { InteractionType } from "../types";
 
 export class GeminiService {
   private getAI() {
+    // Ưu tiên lấy key từ trình duyệt người dùng đã nhập
     const userKey = localStorage.getItem('USER_ARTEDU_API_KEY');
     const apiKey = userKey || process.env.API_KEY;
     
@@ -16,11 +17,8 @@ export class GeminiService {
 
   async generateContent(topic: string, type: InteractionType) {
     const ai = this.getAI();
-    // Sử dụng gemini-3-flash-preview để tối ưu tốc độ và hỗ trợ Search Grounding
     const model = 'gemini-3-flash-preview';
     let responseSchema: any;
-
-    const imgDesc = "BẮT BUỘC: Link ảnh trực tiếp (.jpg, .png, .webp) minh họa cho nội dung mĩ thuật này. Tìm kiếm từ Google Search.";
 
     switch (type) {
       case InteractionType.QUIZ:
@@ -33,9 +31,9 @@ export class GeminiService {
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswer: { type: Type.INTEGER },
               explanation: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: imgDesc }
+              imageUrl: { type: Type.STRING, description: "URL ảnh minh họa trực tiếp." }
             },
-            required: ["question", "options", "correctAnswer", "explanation", "imageUrl"]
+            required: ["question", "options", "correctAnswer", "explanation"]
           }
         };
         break;
@@ -49,9 +47,9 @@ export class GeminiService {
               id: { type: Type.STRING },
               left: { type: Type.STRING },
               right: { type: Type.STRING },
-              imageUrl: { type: Type.STRING, description: imgDesc }
+              imageUrl: { type: Type.STRING }
             },
-            required: ["id", "left", "right", "imageUrl"]
+            required: ["id", "left", "right"]
           }
         };
         break;
@@ -69,9 +67,9 @@ export class GeminiService {
                   id: { type: Type.STRING },
                   content: { type: Type.STRING },
                   correctCategory: { type: Type.STRING },
-                  imageUrl: { type: Type.STRING, description: imgDesc }
+                  imageUrl: { type: Type.STRING }
                 },
-                required: ["id", "content", "correctCategory", "imageUrl"]
+                required: ["id", "content", "correctCategory"]
               }
             }
           },
@@ -80,21 +78,12 @@ export class GeminiService {
         break;
     }
 
-    const systemInstruction = `Bạn là chuyên gia Mĩ thuật THCS. 
-    NHIỆM VỤ: Thiết kế bài tập tương tác sinh động cho chủ đề "${topic}".
-    YÊU CẦU QUAN TRỌNG VỀ HÌNH ẢNH:
-    1. Bạn PHẢI sử dụng công cụ Google Search để tìm URL hình ảnh thực tế của các tác phẩm, họa sĩ hoặc phong cách nghệ thuật được nhắc đến.
-    2. URL ảnh phải là link trực tiếp (kết thúc bằng .jpg, .png, .webp). Không dùng link trang web chung chung.
-    3. Nếu là bài tập về họa sĩ, hãy tìm ảnh chân dung hoặc tác phẩm tiêu biểu của họ.
-    4. Trả về kết quả hoàn toàn bằng Tiếng Việt.`;
-
     const response = await ai.models.generateContent({
       model,
-      contents: `Hãy tìm kiếm và thiết kế bài tập ${type} về "${topic}". Đảm bảo mỗi câu hỏi/mục đều có link ảnh minh họa chính xác từ Google Search.`,
+      contents: `Hãy đóng vai một giáo viên mĩ thuật chuyên nghiệp. Thiết kế bài tập tương tác ${type} về chủ đề "${topic}" phù hợp học sinh trung học. Tìm link ảnh minh họa thực tế nếu có thể.`,
       config: {
         responseMimeType: "application/json",
         responseSchema,
-        tools: [{ googleSearch: {} }], // Kích hoạt công cụ tìm kiếm để lấy link ảnh thực tế
         thinkingConfig: { thinkingBudget: 0 }
       }
     });
@@ -111,7 +100,7 @@ export class GeminiService {
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
-          parts: [{ text: `A professional, colorful educational art header for: ${topic}. High quality, museum style.` }]
+          parts: [{ text: `A vibrant artistic education cover for ${topic}` }]
         },
         config: { imageConfig: { aspectRatio: "16:9" } }
       });
